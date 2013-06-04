@@ -8,7 +8,7 @@
 #include <math.h>
 #include <zlib.h>
 
-#define _QS_MAIN
+#define _SEQQS_MAIN
 
 #ifdef USE_SAMTOOLS_LIBS
 #include "samtools/khash.h"
@@ -137,7 +137,7 @@ qs_set_t *qs_init(qual_type qt, unsigned k) {
   return qs;
 }
 
-void qs_update(qs_set_t *qs, kseq_t *seq) {
+void qs_update(qs_set_t *qs, kseq_t *seq, int strict) {
   unsigned i, last_m, nt, non_iupac=0;
   char bq;
   if (seq->seq.l > qs->m) {
@@ -166,8 +166,10 @@ void qs_update(qs_set_t *qs, kseq_t *seq) {
   int is_missing, ret;
   if (qs->k) kmer = malloc(sizeof(char)*(qs->k + 2 + log10(UINT_MAX)));
 
-  if (seq->qual.l && seq->seq.l != seq->qual.l)
+  if (seq->qual.l && seq->seq.l != seq->qual.l) {
     fprintf(stderr, "[%s] warning: quality and sequence lengths differ in sequence '%s'\n", __func__, seq->name.s);
+    if (strict) exit(1);
+  }
 
   for (i = 0; i < seq->seq.l; i++) {
     /* update nucleotide composition */
@@ -179,8 +181,10 @@ void qs_update(qs_set_t *qs, kseq_t *seq) {
     if (seq->qual.l) {
       bq = (char) seq->qual.s[i];
       if (bq - qoffset(qs->qt) < qmin(qs->qt) || 
-	  bq - qoffset(qs->qt) > qmax(qs->qt))
+	  bq - qoffset(qs->qt) > qmax(qs->qt)) {
 	fprintf(stderr, "[%s] warning: base quality '%d' out of range (%d <= b <= %d) in sequence '%s'\n", __func__, bq, qmin(qs->qt), qmax(qs->qt), seq->name.s);
+	if (strict) exit(1);
+      }
       qs->qm[i][bq - qoffset(qs->qt) - qmin(qs->qt)]++;
     }
     
@@ -207,10 +211,12 @@ void qs_update(qs_set_t *qs, kseq_t *seq) {
       }
     }
   }
-  free(kmer);
+  if (qs->k) free(kmer);
   
-  if (non_iupac)
+  if (non_iupac) {
     fprintf(stderr, "[%s] warning: %d non-IUPAC characters found in sequence '%s'.\n", __func__, non_iupac, seq->name.s);
+    if (strict) exit(1);
+  }
 }
 
 void qs_qm_fprint(FILE *file, qs_set_t *qs) {
@@ -295,38 +301,42 @@ void qs_destroy(qs_set_t *qs) {
   free(qs);
 }
 
-#ifdef _QS_MAIN
+#ifdef _SEQQS_MAIN
 
 int usage() {
   fputs("\
 Usage: seqqs [options] <in.fq>\n\n\
 Options: -q    quality type, either illumina, solexa, or sanger (default: sanger)\n\
-         -p    prefix for output files (default: out)\n\
+         -p    prefix for output files (default: none)\n\
          -k    hash k-mers of length k (default: off)\n\
          -e    emit reads to stdout, for pipelining (default: off)\n\
+         -i    input is interleaved, output statistics per each file (default: off)\n\
+         -s    strict; some warnings become errors (default: off)\n\
 Arguments:  <in.fq> or '-' for stdin.\n\n\
 Output:\n\
 <prefix> is output prefix name. The following output files will be created:\n\
 <prefix>_qual.txt:  quality distribution by position matrix\n\
 <prefix>_nucl.txt:  nucleotide distribution by position matrix\n\
 <prefix>_len.txt:   length distribution by position matrix\n\
-<prefix>_kmer.txt:  k-mer distribution by position matrix\n", stderr);
+<prefix>_kmer.txt:  k-mer distribution by position matrix\n\
+\
+If -i is used, these will have \"_1.txt\" and \"_2.txt\" suffixes.", stderr);
   return 1;
 }
 
 int main(int argc, char *argv[]) {
-  int c, k=0, emit=0;
+  int c, pr=0, k=0, emit=0, strict=0, interleaved=0;
   char *qual_fn="qual.txt", *nucl_fn="nucl.txt", *len_fn="len.txt", *kmer_fn="kmer.txt";
-  char *prefix=NULL;
-  FILE *qual_fp, *nucl_fp, *len_fp, *kmer_fp;
+  char *prefix="";
+  FILE *qual_fp[2], *nucl_fp[2], *len_fp[2], *kmer_fp[2];
   qual_type qtype=SANGER;
-  qs_set_t *qs;
+  qs_set_t *qs[2];
   gzFile fp;
   kseq_t *seq;
 
   if (argc == 1) return usage();
 
-  while ((c = getopt(argc, argv, "q:k:p:e")) >= 0) {
+  while ((c = getopt(argc, argv, "q:k:p:esi")) >= 0) {
     switch (c) {
     case 'q':
       if (strcmp(optarg, "illumina") == 0)
@@ -343,11 +353,18 @@ int main(int argc, char *argv[]) {
     case 'k':
       k = atoi(optarg);
       break;
+    case 's':
+      strict = 1;
+      break;
+    case 'i':
+      interleaved = 1;
+      break;
     case 'e':
       emit = 1;
       break;
     case 'p':
-      prefix = strdup(optarg);
+      prefix = calloc(strlen(optarg)+2, sizeof(char));
+      sprintf(prefix, "%s_", optarg);
       break;
     case 'h':
     default:
@@ -358,45 +375,72 @@ int main(int argc, char *argv[]) {
   if (argc == optind) return usage();
   fp = strcmp(argv[optind], "-") ? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
 
-  if (prefix) {
-    int n = strlen(prefix);
-    qual_fn = malloc(sizeof(char)*(n+9));
-    sprintf(qual_fn, "%s_qual.txt", prefix);
-    nucl_fn = malloc(sizeof(char)*(n+9));
-    sprintf(nucl_fn, "%s_nucl.txt", prefix);
-    len_fn = malloc(sizeof(char)*(n+8));
-    sprintf(len_fn, "%s_len.txt", prefix);
-    kmer_fn = malloc(sizeof(char)*(n+9));
-    sprintf(kmer_fn, "%s_kmer.txt", prefix);
+  int n = strlen(prefix) + 2*interleaved + 9;
+  qual_fn = calloc(n, sizeof(char));
+  nucl_fn = calloc(n, sizeof(char));
+  len_fn = calloc(n, sizeof(char));
+  kmer_fn = calloc(n, sizeof(char));
+  
+  char *suffix = calloc(7, sizeof(char));
+  for (pr = 0; pr < interleaved+1; pr++) {
+    if (interleaved)
+      sprintf(suffix, "_%d.txt", pr+1);
+    else
+      sprintf(suffix, ".txt");
+    
+    sprintf(qual_fn, "%squal%s", prefix, suffix);
+    sprintf(nucl_fn, "%snucl%s", prefix, suffix);
+    sprintf(len_fn, "%slen%s", prefix, suffix);
+    sprintf(kmer_fn, "%skmer%s", prefix, suffix);
+    
+    qual_fp[pr] = fopen(qual_fn, "w");
+    nucl_fp[pr] = fopen(nucl_fn, "w");
+    len_fp[pr] = fopen(len_fn, "w");
+    kmer_fp[pr] = fopen(kmer_fn, "w");
+    
+    if (!(qual_fp[pr] && nucl_fp[pr] && len_fp[pr] && kmer_fp[pr])) {
+      fprintf(stderr, "[%s] error: cannot open a file for output.\n", __func__);
+      return(1);
+    }
   }
-  qual_fp = fopen(qual_fn, "w");
-  nucl_fp = fopen(nucl_fn, "w");
-  len_fp = fopen(len_fn, "w");
-  kmer_fp = fopen(kmer_fn, "w");
+  free(suffix); 
+  if (strlen(prefix)) free(prefix);
 
-  if (!(qual_fp && nucl_fp && len_fp && kmer_fp)) {
-    fprintf(stderr, "[%s] error: cannot open a file for output.\n", __func__);
-    return(1);
-  }
-
-  if (prefix) {
+  if (strlen(prefix)) {
     free(qual_fn); free(nucl_fn); free(len_fn); free(kmer_fn);
   }
-
-  qs = qs_init(qtype, k);
+  
+  qs[0] = qs_init(qtype, k);
+  if (interleaved) {
+    qs[1] = qs_init(qtype, k);
+  }
   seq = kseq_init(fp);
   while (kseq_read(seq) >= 0) {
-    qs_update(qs, seq);
+    qs_update(qs[0], seq, strict);
     if (emit) qs_printseq(seq, seq->seq.l);
+    
+    /* for interleaved files, grab and process another entry */
+    if (interleaved) {
+      if (kseq_read(seq) >= 0) {
+	qs_update(qs[1], seq, strict);
+	if (emit) qs_printseq(seq, seq->seq.l);
+      } else {
+	fprintf(stderr, "[%s] error: interleaved file length not multiple of two.", __func__);
+	return 1;
+      }
+    }
+  }
+  
+  for (pr = 0; pr < interleaved+1; pr++) {
+    qs_ntm_fprint(nucl_fp[pr], qs[pr]);
+    qs_qm_fprint(qual_fp[pr], qs[pr]);
+    qs_lm_fprint(len_fp[pr], qs[pr]);
+    if (k) qs_kmer_fprint(kmer_fp[pr], qs[pr]);
+    qs_destroy(qs[pr]);
+    fclose(qual_fp[pr]); fclose(nucl_fp[pr]); fclose(len_fp[pr]); fclose(kmer_fp[pr]);
   }
 
-  qs_ntm_fprint(nucl_fp, qs);
-  qs_qm_fprint(qual_fp, qs);
-  qs_lm_fprint(len_fp, qs);
-  if (k) qs_kmer_fprint(kmer_fp, qs);
-
   kseq_destroy(seq);
-  qs_destroy(qs);
   gzclose(fp);
 }
-#endif
+#endif /* _SEQQS_MAIN */

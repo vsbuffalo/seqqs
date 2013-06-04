@@ -186,19 +186,23 @@ void qs_update(qs_set_t *qs, kseq_t *seq) {
     
     /* hash positional k-mers */
     if (qs->k) {
-      if (i <= seq->seq.l-qs->k) {
-	strncpy(kmer, seq->seq.s, (size_t) qs->k);
-	sprintf(kmer + qs->k, "-%u", i+1);
-
-	/* hash kmer */
-	key = kh_get(str, qs->h, kmer);
-	is_missing = (key == kh_end(qs->h));
-	if (is_missing) {
-	  key = kh_put(str, qs->h, strdup(kmer), &ret);
-	  kh_value(qs->h, key) = 1;
-	  qs->n_uniq_kmer_pos++;
-	} else {
-	  kh_value(qs->h, key) = kh_value(qs->h, key) + 1;
+      if (qs->k > seq->seq.l) {
+	fprintf(stderr, "[%s] warning: k-mer length longer than sequence '%s'\n", __func__, seq->name.s);
+      } else {
+	if (i <= seq->seq.l-qs->k) {
+	  strncpy(kmer, seq->seq.s, (size_t) qs->k);
+	  sprintf(kmer + qs->k, "-%u", i+1);
+	  
+	  /* hash kmer */
+	  key = kh_get(str, qs->h, kmer);
+	  is_missing = (key == kh_end(qs->h));
+	  if (is_missing) {
+	    key = kh_put(str, qs->h, strdup(kmer), &ret);
+	    kh_value(qs->h, key) = 1;
+	    qs->n_uniq_kmer_pos++;
+	  } else {
+	    kh_value(qs->h, key) = kh_value(qs->h, key) + 1;
+	  }
 	}
       }
     }
@@ -266,11 +270,11 @@ void qs_kmer_fprint(FILE *file, qs_set_t *qs) {
   khiter_t k;
   char *key;
   int i = 0;
-  printf("kmer\tpos\tcount\n");
+  fprintf(file, "kmer\tpos\tcount\n");
   for (k = kh_begin(qs->h); k != kh_end(qs->h); ++k) {
     if (!kh_exist(qs->h, k)) continue;
     key = (char*) kh_key(qs->h, k);
-    printf("%.*s\t%s\t%llu\n", qs->k, key, key+(qs->k+1), kh_value(qs->h, k));
+    fprintf(file, "%.*s\t%s\t%llu\n", qs->k, key, key+(qs->k+1), kh_value(qs->h, k));
     i++;
     free((char *) kh_key(qs->h, k));
   }
@@ -295,7 +299,7 @@ void qs_destroy(qs_set_t *qs) {
 
 int usage() {
   fputs("\
-Usage: qualstat [options] <in.fq>\n\n\
+Usage: seqqs [options] <in.fq>\n\n\
 Options: -q    quality type, either illumina, solexa, or sanger (default: sanger)\n\
          -p    prefix for output files (default: out)\n\
          -k    hash k-mers of length k (default: off)\n\

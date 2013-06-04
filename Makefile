@@ -1,4 +1,4 @@
-PROGRAM_NAME = qualstat
+PROGRAM_NAME = seqqs
 VERSION = 0.01
 CC = clang
 DEBUG ?= 0
@@ -10,7 +10,7 @@ else
 endif
 ARCHIVE = $(PROGRAM_NAME)_$(VERSION)
 LDFLAGS = -lz
-OBJS = qualstat.o
+OBJS = seqqs.o
 
 .PHONY: clean all
 
@@ -19,7 +19,7 @@ default: all
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-qualstat.o: kseq.h
+seqqs.o: kseq.h kseq.h
 
 clean: 
 	rm -f $(OBJS)

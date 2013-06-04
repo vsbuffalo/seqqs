@@ -2,7 +2,9 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
+#include <limits.h>
 #include <math.h>
 #include <zlib.h>
 
@@ -17,6 +19,7 @@
 #endif
 
 KSEQ_INIT(gzFile, gzread)
+KHASH_MAP_INIT_STR(str, uint64_t)
 
 #define INIT_SEQLEN 10
 #ifndef kroundup32
@@ -73,29 +76,63 @@ char *seq_nt17_rev_table = "XACMGRSVTWYHKDBN-";
 
 typedef struct _qs_set_t {
   size_t l, m;
-  unsigned **ntm;
-  unsigned **qm;
-  unsigned *lm;
+  unsigned k;
+  uint64_t **ntm;
+  uint64_t **qm;
+  uint64_t *lm;
   qual_type qt;
+  uint64_t n_uniq_kmer_pos;
+  khash_t(str) *h;
 } qs_set_t;
 
-qs_set_t *qs_init(qual_type qt) {
+static void qs_printstr(const kstring_t *s, unsigned line_len) {
+  if (line_len != UINT_MAX) {
+    int i, rest = s->l;
+    for (i = 0; i < s->l; i += line_len, rest -= line_len) {
+      putchar('\n');
+      if (rest > line_len) fwrite(s->s + i, 1, line_len, stdout);
+      else fwrite(s->s + i, 1, rest, stdout);
+    }
+    putchar('\n');
+  } else {
+    putchar('\n');
+    puts(s->s);
+  }
+}
+
+void qs_printseq(const kseq_t *s, int line_len) {
+  putchar(s->qual.l? '@' : '>');
+  fputs(s->name.s, stdout);
+  if (s->comment.l) {
+    putchar(' '); fputs(s->comment.s, stdout);
+  }
+  qs_printstr(&s->seq, line_len);
+  if (s->qual.l) {
+    putchar('+');
+    qs_printstr(&s->qual, line_len);
+  }
+}
+
+
+qs_set_t *qs_init(qual_type qt, unsigned k) {
   /* 
      Allocate matrices for quality and nucleotides. Rows correspond to
      position in sequence, so growing them is simpler.
   */
   unsigned i;
-
   qs_set_t *qs = malloc(sizeof(qs_set_t));
   qs->qt = qt;
   qs->m = (size_t) INIT_SEQLEN;
   qs->l = 0;
-  qs->ntm = malloc(qs->m*sizeof(unsigned*));
-  qs->qm = malloc(qs->m*sizeof(unsigned*));
-  qs->lm = calloc(qs->m, sizeof(unsigned));
+  qs->n_uniq_kmer_pos = 0;
+  qs->k = k;
+  qs->h = k > 0 ? kh_init(str) : NULL;
+  qs->ntm = malloc(qs->m*sizeof(uint64_t*));
+  qs->qm = malloc(qs->m*sizeof(uint64_t*));
+  qs->lm = calloc(qs->m, sizeof(uint64_t));
   for (i = 0; i < qs->m; i++) {
-    qs->ntm[i] = calloc(16, sizeof(unsigned));
-    qs->qm[i] = calloc(qrng(qs->qt), sizeof(unsigned));
+    qs->ntm[i] = calloc(17, sizeof(uint64_t));
+    qs->qm[i] = calloc(qrng(qs->qt), sizeof(uint64_t));
   }
   return qs;
 }
@@ -104,95 +141,150 @@ void qs_update(qs_set_t *qs, kseq_t *seq) {
   unsigned i, last_m, nt, non_iupac=0;
   char bq;
   if (seq->seq.l > qs->m) {
+    /* grow all matrices */
     last_m = qs->m;
     qs->m = seq->seq.l + 1;
     kroundup32(qs->m);
     /* fprintf(stderr, "[%s] adding rows to matrix (old size: %d; new size: %d)\n", __func__, last_m, qs->m); */
-    qs->ntm = realloc(qs->ntm, sizeof(unsigned*)*qs->m);
-    qs->qm = realloc(qs->qm, sizeof(unsigned*)*qs->m);
-    qs->lm = realloc(qs->lm, sizeof(unsigned)*qs->m);
+    qs->ntm = realloc(qs->ntm, sizeof(uint64_t*)*qs->m);
+    qs->qm = realloc(qs->qm, sizeof(uint64_t*)*qs->m);
+    qs->lm = realloc(qs->lm, sizeof(uint64_t)*qs->m);
     for (i = last_m; i < qs->m; i++) {
-      qs->ntm[i] = calloc(16, sizeof(unsigned));
-      qs->qm[i] = calloc(qrng(qs->qt), sizeof(unsigned));
+      qs->ntm[i] = calloc(17, sizeof(uint64_t));
+      qs->qm[i] = calloc(qrng(qs->qt), sizeof(uint64_t));
     }
   }
+
+  /* update largest sequence encountered */
   if (seq->seq.l > qs->l) qs->l = seq->seq.l;
+  
+  /* update length (0-indexed) */
+  qs->lm[seq->seq.l-1]++;
+
+  char *kmer;
+  khiter_t key;
+  int is_missing, ret;
+  if (qs->k) kmer = malloc(sizeof(char)*(qs->k + 2 + log10(UINT_MAX)));
 
   if (seq->qual.l && seq->seq.l != seq->qual.l)
-    fprintf(stderr, "[%s] quality and sequence lengths differ in sequence '%s'\n", __func__, seq->name.s);
+    fprintf(stderr, "[%s] warning: quality and sequence lengths differ in sequence '%s'\n", __func__, seq->name.s);
 
   for (i = 0; i < seq->seq.l; i++) {
+    /* update nucleotide composition */
     nt = seq_nt17_table[(int) seq->seq.s[i]];
     if (!nt) non_iupac++;
     qs->ntm[i][nt]++;
+    
+    /* update quality composition */
     if (seq->qual.l) {
       bq = (char) seq->qual.s[i];
       if (bq - qoffset(qs->qt) < qmin(qs->qt) || 
 	  bq - qoffset(qs->qt) > qmax(qs->qt))
-	fprintf(stderr, "[%s] base quality '%d' out of range (%d <= b <= %d) in sequence '%s'\n", __func__, bq, qmin(qs->qt), qmax(qs->qt), seq->name.s);
-
+	fprintf(stderr, "[%s] warning: base quality '%d' out of range (%d <= b <= %d) in sequence '%s'\n", __func__, bq, qmin(qs->qt), qmax(qs->qt), seq->name.s);
       qs->qm[i][bq - qoffset(qs->qt) - qmin(qs->qt)]++;
     }
-  }
+    
+    /* hash positional k-mers */
+    if (qs->k) {
+      if (i <= seq->seq.l-qs->k) {
+	strncpy(kmer, seq->seq.s, (size_t) qs->k);
+	sprintf(kmer + qs->k, "-%u", i+1);
 
+	/* hash kmer */
+	key = kh_get(str, qs->h, kmer);
+	is_missing = (key == kh_end(qs->h));
+	if (is_missing) {
+	  key = kh_put(str, qs->h, strdup(kmer), &ret);
+	  kh_value(qs->h, key) = 1;
+	  qs->n_uniq_kmer_pos++;
+	} else {
+	  kh_value(qs->h, key) = kh_value(qs->h, key) + 1;
+	}
+      }
+    }
+  }
+  free(kmer);
+  
   if (non_iupac)
     fprintf(stderr, "[%s] warning: %d non-IUPAC characters found in sequence '%s'.\n", __func__, non_iupac, seq->name.s);
-
 }
 
-void qs_qm_fprint(FILE *stream, qs_set_t *qs) {
-  unsigned i, j, cnt;
+void qs_qm_fprint(FILE *file, qs_set_t *qs) {
+  unsigned i, j;
+  uint64_t cnt;
   char bq;
 
   for (j = 0; j < qrng(qs->qt); j++) {
     bq = j + qoffset(qs->qt) + qmin(qs->qt);
-    fprintf(stream, "Q%d", bq);
-    if (j < qrng(qs->qt)-1) fputc(' ', stream);
+    fprintf(file, "Q%d", bq);
+    if (j < qrng(qs->qt)-1) fputc(' ', file);
   }
-  fputc('\n', stream);
+  fputc('\n', file);
 
   for (i = 0; i < qs->l; i++) {
     for (j = 0; j < qrng(qs->qt); j++) {
       cnt = qs->qm[i][j];
-      fprintf(stream, "%d", cnt);
-      if (j < qrng(qs->qt)-1) fputc(' ', stream);
+      fprintf(file, "%llu", cnt);
+      if (j < qrng(qs->qt)-1) fputc(' ', file);
     }
-    fputc('\n', stream);
+    fputc('\n', file);
   }
-  fputc('\n', stream);
+  fputc('\n', file);
 }
 
-void qs_ntm_fprint(FILE *stream, qs_set_t *qs) {
-  unsigned i, j, cnt;
+void qs_ntm_fprint(FILE *file, qs_set_t *qs) {
+  unsigned i, j;
+  uint64_t cnt;
 
-  for (j = 0; j < 16; ++j) {
-    fputc(seq_nt17_rev_table[j], stream);
-    if (j < 15) fputc('\t', stream);
+  for (j = 0; j < 17; ++j) {
+    fputc(seq_nt17_rev_table[j], file);
+    if (j < 16) fputc('\t', file);
   }
-  fputc('\n', stream);
+  fputc('\n', file);
 
   for (i = 0; i < qs->l; i++) {
-    for (j = 0; j < 16; j++) {
+    for (j = 0; j < 17; j++) {
       cnt = qs->ntm[i][j];
-      fprintf(stream, "%d", cnt);
-      if (j < 15) fputc('\t', stream);
+      fprintf(file, "%llu", cnt);
+      if (j < 16) fputc('\t', file);
     }
-    fputc('\n', stream);
+    fputc('\n', file);
   }
-  fputc('\n', stream);
+  fputc('\n', file);
 }
 
-void qs_lm_print(qs_set_t *qs) {
-  
+void qs_lm_fprint(FILE *file, qs_set_t *qs) {
+  unsigned i;
+  for (i = 0; i < qs->l; i++) {
+    fprintf(file, "%d\t%llu\n", i+1, qs->lm[i]);
+  }
+  fputc('\n', file);
+}
+
+void qs_kmer_fprint(FILE *file, qs_set_t *qs) {
+  if (!qs->k) return;
+  khiter_t k;
+  char *key;
+  int i = 0;
+  printf("kmer\tpos\tcount\n");
+  for (k = kh_begin(qs->h); k != kh_end(qs->h); ++k) {
+    if (!kh_exist(qs->h, k)) continue;
+    key = (char*) kh_key(qs->h, k);
+    printf("%.*s\t%s\t%llu\n", qs->k, key, key+(qs->k+1), kh_value(qs->h, k));
+    i++;
+    free((char *) kh_key(qs->h, k));
+  }
+  fputc('\n', file);
 }
 
 
-void qs_destory(qs_set_t *qs) {
+void qs_destroy(qs_set_t *qs) {
   unsigned i;
   for (i = 0; i < qs->m; i++) {
     free(qs->ntm[i]);
     free(qs->qm[i]);
   }
+  kh_destroy(str, qs->h);
   free(qs->ntm);
   free(qs->qm);
   free(qs->lm);
@@ -200,21 +292,107 @@ void qs_destory(qs_set_t *qs) {
 }
 
 #ifdef _QS_MAIN
+
+int usage() {
+  fputs("\
+Usage: qualstat [options] <in.fq>\n\n\
+Options: -q    quality type, either illumina, solexa, or sanger (default: sanger)\n\
+         -p    prefix for output files (default: out)\n\
+         -k    hash k-mers of length k (default: off)\n\
+         -e    emit reads to stdout, for pipelining (default: off)\n\
+Arguments:  <in.fq> or '-' for stdin.\n\n\
+Output:\n\
+<prefix> is output prefix name. The following output files will be created:\n\
+<prefix>_qual.txt:  quality distribution by position matrix\n\
+<prefix>_nucl.txt:  nucleotide distribution by position matrix\n\
+<prefix>_len.txt:   length distribution by position matrix\n\
+<prefix>_kmer.txt:  k-mer distribution by position matrix\n", stderr);
+  return 1;
+}
+
 int main(int argc, char *argv[]) {
-  qs_set_t *qs = qs_init(SANGER);
+  int c, k=0, emit=0;
+  char *qual_fn="qual.txt", *nucl_fn="nucl.txt", *len_fn="len.txt", *kmer_fn="kmer.txt";
+  char *prefix=NULL;
+  FILE *qual_fp, *nucl_fp, *len_fp, *kmer_fp;
+  qual_type qtype=SANGER;
+  qs_set_t *qs;
   gzFile fp;
   kseq_t *seq;
-  //fp = strcmp(argv[optind], "-")? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
-  fp = gzopen(argv[1], "r");
 
+  if (argc == 1) return usage();
+
+  while ((c = getopt(argc, argv, "q:k:p:e")) >= 0) {
+    switch (c) {
+    case 'q':
+      if (strcmp(optarg, "illumina") == 0)
+	qtype = ILLUMINA;
+      else if (strcmp(optarg, "solexa") == 0)
+	qtype = SOLEXA;
+      else if (strcmp(optarg, "sanger") == 0)
+	qtype = SANGER;
+      else {
+	fprintf(stderr, "Unknown quality type '%s'.\n", optarg);
+	return(1);
+      }
+      break;
+    case 'k':
+      k = atoi(optarg);
+      break;
+    case 'e':
+      emit = 1;
+      break;
+    case 'p':
+      prefix = strdup(optarg);
+      break;
+    case 'h':
+    default:
+      return usage();
+    }
+  }
+
+  if (argc == optind) return usage();
+  fp = strcmp(argv[optind], "-") ? gzopen(argv[optind], "r") : gzdopen(fileno(stdin), "r");
+
+  if (prefix) {
+    int n = strlen(prefix);
+    qual_fn = malloc(sizeof(char)*(n+9));
+    sprintf(qual_fn, "%s_qual.txt", prefix);
+    nucl_fn = malloc(sizeof(char)*(n+9));
+    sprintf(nucl_fn, "%s_nucl.txt", prefix);
+    len_fn = malloc(sizeof(char)*(n+8));
+    sprintf(len_fn, "%s_len.txt", prefix);
+    kmer_fn = malloc(sizeof(char)*(n+9));
+    sprintf(kmer_fn, "%s_kmer.txt", prefix);
+  }
+  qual_fp = fopen(qual_fn, "w");
+  nucl_fp = fopen(nucl_fn, "w");
+  len_fp = fopen(len_fn, "w");
+  kmer_fp = fopen(kmer_fn, "w");
+
+  if (!(qual_fp && nucl_fp && len_fp && kmer_fp)) {
+    fprintf(stderr, "[%s] error: cannot open a file for output.\n", __func__);
+    return(1);
+  }
+
+  if (prefix) {
+    free(qual_fn); free(nucl_fn); free(len_fn); free(kmer_fn);
+  }
+
+  qs = qs_init(qtype, k);
   seq = kseq_init(fp);
   while (kseq_read(seq) >= 0) {
     qs_update(qs, seq);
+    if (emit) qs_printseq(seq, seq->seq.l);
   }
-  //  qs_ntm_fprint(stdout, qs);
-  qs_qm_fprint(stdout, qs);
+
+  qs_ntm_fprint(nucl_fp, qs);
+  qs_qm_fprint(qual_fp, qs);
+  qs_lm_fprint(len_fp, qs);
+  if (k) qs_kmer_fprint(kmer_fp, qs);
+
   kseq_destroy(seq);
-  qs_destory(qs);
+  qs_destroy(qs);
   gzclose(fp);
 }
 #endif

@@ -21,5 +21,9 @@ default: all
 
 qualstat.o: kseq.h
 
+clean: 
+	rm -f $(OBJS)
+	rm -f $(PROGRAM_NAME)
+
 all: $(OBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $? -o $(PROGRAM_NAME)

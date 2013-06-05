@@ -6,6 +6,19 @@ mostly adapted from [qrqc](http://github.com/vsbuffalo/qrqc), except
 it is designed to be run in quality processing pipelines. It can also
 be compiled as a dynamic library and called from other programs.
 
+Seqqs is meant to check nucleotide composition, k-mer abundance,
+length distribution, and base quality at many points on in a quality
+control pipeline. Why might you want to do this? Quality control
+programs can misbehave — don't trust your tools or data (the "golden
+rule of bioinformatics"). In several cases, I've seen pathologically
+bad data quality lead to a program severely misbehaving to. This may
+lead to confounding during downstream analysis if uncaught, as one
+sequencing sample of initially poor quality may be overtrimmed, or
+many reads removed (I've seen this in practice, and the statistical
+consequences). It's much easier to put Seqqs in your pipeline, and
+quickly check the results to ensure both your data and tools are
+working as they should be.
+
 ## Requirements and Installation
 
 Seqqs can be compiled using GCC or Clang; compilation during
@@ -65,5 +78,10 @@ error out if interleaved pairs do not have the same name (ignoring
 
 ## Using Output
 
-qrqc will soon have functions to gather this output and make plots
-from it. For now, 
+All tables are tab-delimited with headers, and can be easily analyzed
+by a program of your choice. qrqc will soon have functions to gather
+this output and make plots from it.
+
+## Todo
+
+ - BAM support

@@ -229,7 +229,7 @@ void qs_qm_fprint(FILE *file, qs_set_t *qs) {
   for (j = 0; j < qrng(qs->qt); j++) {
     bq = j + qoffset(qs->qt) + qmin(qs->qt);
     fprintf(file, "Q%d", bq);
-    if (j < qrng(qs->qt)-1) fputc(' ', file);
+    if (j < qrng(qs->qt)-1) fputc('\t', file);
   }
   fputc('\n', file);
 
@@ -237,7 +237,7 @@ void qs_qm_fprint(FILE *file, qs_set_t *qs) {
     for (j = 0; j < qrng(qs->qt); j++) {
       cnt = qs->qm[i][j];
       fprintf(file, "%llu", cnt);
-      if (j < qrng(qs->qt)-1) fputc(' ', file);
+      if (j < qrng(qs->qt)-1) fputc('\t', file);
     }
     fputc('\n', file);
   }

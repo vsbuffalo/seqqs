@@ -24,7 +24,8 @@ some usage examples.
 Without any options, `seqqs` works like so:
 
     cat in.fq | seqqs -
-	# or seqqs in.fq
+	# or:
+	seqqs in.fq
 	
 Note that `-` tells `seqqs` to read from standard input. Without any
 options, this will create `qual.txt`, `nucl.txt`, and `len.txt`.
@@ -52,7 +53,15 @@ Many sequencing data set are plagued by positional contaminants,
 especially as barcoding grows in popularity. The k-mer option is `-k
 <n>` where *n* is the k-mer size:
 
-    cat in.fq | seqqs -k 6 
+    cat in.fq | seqqs -k 6
+	
+`seqqs` can also work with **interleaved** paired-end files. The
+results are no different, but two output files (one for each set of
+reads in a pair) are created. These have the names like the default,
+except they have `_1.txt` and `_2.txt` suffixes. Also, `seqqs` will
+warn if pairing looks incorrect. If `-s` (strict) is set, `seqqs` will
+error out if interleaved pairs do not have the same name (ignoring
+`/1` and `/2` and excluding the comment).
 
 ## Using Output
 

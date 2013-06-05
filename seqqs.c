@@ -8,14 +8,16 @@
 #include <math.h>
 #include <zlib.h>
 
-#define _SEQQS_MAIN
-
 #ifdef USE_SAMTOOLS_LIBS
 #include "samtools/khash.h"
 #include "samtools/kseq.h"
 #else
 #include "khash.h"
 #include "kseq.h"
+#endif
+
+#ifndef _LIB_ONLY
+#define _SEQQS_MAIN
 #endif
 
 KSEQ_INIT(gzFile, gzread)
@@ -301,6 +303,17 @@ void qs_destroy(qs_set_t *qs) {
   free(qs);
 }
 
+int is_interleaved_pair(const char *s1, const char *s2) {
+  while (*s1 && *s2) {
+    /* strings should be identical apart from trailing 1 or 2
+       (i.e. seq-a/1 and seq-a/2) */
+    if (*s1 != *s2 && (*s1 != '1' && *s2 != '2'))
+      return 0;
+    s1++; s2++;
+  }
+  return 1;
+}
+
 #ifdef _SEQQS_MAIN
 
 int usage() {
@@ -327,7 +340,7 @@ If -i is used, these will have \"_1.txt\" and \"_2.txt\" suffixes.", stderr);
 int main(int argc, char *argv[]) {
   int c, pr=0, k=0, emit=0, strict=0, interleaved=0;
   char *qual_fn="qual.txt", *nucl_fn="nucl.txt", *len_fn="len.txt", *kmer_fn="kmer.txt";
-  char *prefix="";
+  char *prefix="", *rname;
   FILE *qual_fp[2], *nucl_fp[2], *len_fp[2], *kmer_fp[2];
   qual_type qtype=SANGER;
   qs_set_t *qs[2];
@@ -415,20 +428,28 @@ int main(int argc, char *argv[]) {
     qs[1] = qs_init(qtype, k);
   }
   seq = kseq_init(fp);
+
   while (kseq_read(seq) >= 0) {
+    if (strict) rname = strdup(seq->seq.s);
     qs_update(qs[0], seq, strict);
     if (emit) qs_printseq(seq, seq->seq.l);
-    
+    rname = strdup(seq->name.s);
+
     /* for interleaved files, grab and process another entry */
     if (interleaved) {
       if (kseq_read(seq) >= 0) {
 	qs_update(qs[1], seq, strict);
 	if (emit) qs_printseq(seq, seq->seq.l);
+	if (!is_interleaved_pair(seq->name.s, rname)) {
+	  fprintf(stderr, "[%s] warning: interleaved reads names differ '%s' != '%s'\n", __func__, seq->name.s, rname);
+	  if (strict) return 1;
+	}
       } else {
 	fprintf(stderr, "[%s] error: interleaved file length not multiple of two.", __func__);
 	return 1;
       }
     }
+    free(rname);
   }
   
   for (pr = 0; pr < interleaved+1; pr++) {

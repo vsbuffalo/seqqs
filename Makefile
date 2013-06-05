@@ -11,10 +11,11 @@ endif
 ARCHIVE = $(PROGRAM_NAME)_$(VERSION)
 LDFLAGS = -lz
 OBJS = seqqs.o
+LOBJS = seqqs.o
 
-.PHONY: clean all
+.PHONY: clean build
 
-default: all
+default: build
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -25,5 +26,11 @@ clean:
 	rm -f $(OBJS)
 	rm -f $(PROGRAM_NAME)
 
-all: $(OBJS)
+build: $(OBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $? -o $(PROGRAM_NAME)
+
+lib: libseqqs.so
+
+libseqqs.so: CLFAGS += -fpic -D_LIB_ONLY
+libseqqs.so: $(LOBJS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -shared -o $@ $^

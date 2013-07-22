@@ -13,9 +13,9 @@ LDFLAGS = -lz
 OBJS = seqqs.o
 LOBJS = seqqs.o
 
-.PHONY: clean build
+.PHONY: clean all
 
-default: build
+all: seqqs pairs
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -25,9 +25,13 @@ seqqs.o: kseq.h kseq.h
 clean: 
 	rm -f $(OBJS)
 	rm -f $(PROGRAM_NAME)
+	rm -f pairs pairs.o
 
-build: $(OBJS)
+seqqs: $(OBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $? -o $(PROGRAM_NAME)
+
+pairs: pairs.o
+	$(CC) $(CFLAGS) $(LDFLAGS) $? -o pairs
 
 lib: libseqqs.so
 

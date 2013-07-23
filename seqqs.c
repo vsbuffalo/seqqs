@@ -475,8 +475,8 @@ int main(int argc, char *argv[]) {
       if (kseq_read(seq) >= 0) {
 	qs_update(qs[1], seq, strict);
 	if (emit) qs_printseq(seq, seq->seq.l);
-	if (!is_interleaved_pair(seq->name.s, rname)) {
-	  fprintf(stderr, "[%s] warning: interleaved reads names differ '%s' != '%s'\n", __func__, seq->name.s, rname);
+	if (!is_interleaved_pair(rname, seq->name.s)) {
+	  fprintf(stderr, "[%s] warning: interleaved reads names differ '%s' != '%s'\n", __func__, rname, seq->name.s);
 	  if (strict) return 1;
 	}
       } else {

@@ -1,4 +1,4 @@
-# Contributed Scripts
+# Wrappers Scripts
 
 `seqqs` (and the tool `pairs` packaged with it, to interleave and
 uninterleave files) is wrapped in a simple Python script. Currently

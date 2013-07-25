@@ -20,6 +20,13 @@
 #define _SEQQS_MAIN
 #endif
 
+#ifndef check_fopen
+#define check_fopen(fp) if (!(fp)) {                                    \
+    fprintf(stderr, "[%s] error: cannot open a file.\n", __func__);     \
+    exit(1);                                                            \
+  }
+#endif
+
 KSEQ_INIT(gzFile, gzread)
 KHASH_MAP_INIT_STR(str, uint64_t)
 
@@ -363,6 +370,7 @@ If -i is used, these will have \"_1.txt\" and \"_2.txt\" suffixes.", stderr);
 
 int main(int argc, char *argv[]) {
   int c, pr=0, k=0, emit=0, strict=0, interleaved=0;
+  int has_prefix = 0;
   char *qual_fn="qual.txt", *nucl_fn="nucl.txt", *len_fn="len.txt", *kmer_fn="kmer.txt";
   char *prefix="", *rname;
   FILE *qual_fp[2], *nucl_fp[2], *len_fp[2], *kmer_fp[2];
@@ -405,6 +413,7 @@ int main(int argc, char *argv[]) {
     case 'p':
       prefix = calloc(strlen(optarg)+2, sizeof(char));
       sprintf(prefix, "%s_", optarg);
+      has_prefix = 1;
       break;
     case 'h':
     default:
@@ -437,23 +446,25 @@ int main(int argc, char *argv[]) {
     if (k)
       sprintf(kmer_fn, "%skmer%s", prefix, suffix);
     
-    if (qtype != NONE)
+    if (qtype != NONE) {
       qual_fp[pr] = fopen(qual_fn, "w");
-    nucl_fp[pr] = fopen(nucl_fn, "w");
-    len_fp[pr] = fopen(len_fn, "w");
-    if (k)
-      kmer_fp[pr] = fopen(kmer_fn, "w");
-    
-    if (!(qual_fp[pr] && nucl_fp[pr] && len_fp[pr] && kmer_fp[pr])) {
-      fprintf(stderr, "[%s] error: cannot open a file for output.\n", __func__);
-      return(1);
+      check_fopen(qual_fp[pr]);
     }
+    nucl_fp[pr] = fopen(nucl_fn, "w");
+    check_fopen(nucl_fn[pr]);
+    len_fp[pr] = fopen(len_fn, "w");
+    check_fopen(len_fn[pr]);
+    if (k) {
+      kmer_fp[pr] = fopen(kmer_fn, "w");
+      check_fopen(kmer_fp[pr]);
+    }
+    
   }
   free(suffix); 
-  if (strlen(prefix)) free(prefix);
+  if (has_prefix) free(prefix);
 
-  if (strlen(prefix)) {
-    if (has_qual(qs[0]) && has_qual(qs[1])) free(qual_fn); 
+  if (has_prefix) {
+    if (qtype != NONE) free(qual_fn);
     free(nucl_fn); free(len_fn); 
     if (k) free(kmer_fn);
   }

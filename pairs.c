@@ -8,6 +8,20 @@
 
 KSEQ_INIT(gzFile, gzread)
 
+static int is_interleaved_pair(const char *s1, const char *s2) {
+  while (*s1 && *s2) {
+    /* strings should be identical apart from trailing 1 or 2
+       (i.e. seq-a/1 and seq-a/2) 
+
+       TODO: this checking is fairly simplistic, could be made better.
+    */
+    if (*s1 != *s2 && (*s1 != '1' && *s2 != '2'))
+      return 0;
+    s1++; s2++;
+  }
+  return 1;
+}
+
 static int usage() {
   fprintf(stderr, "\nInterleaves (pairs) and un-interleaves paired-end files");
   fprintf(stderr, "Usage <command> <arguments>\n\n");
@@ -54,7 +68,7 @@ void printseq(FILE *stream, const kseq_t *s, int line_len, int tag) {
 int join_usage() {
   fputs("\
 Usage:    pairs join [options] <in1.fq> <in2.fq>\n\n\
-Options:  -t   tag interleaved pairs with '\1' and '\2' (before comment)\n\
+Options:  -t   tag interleaved pairs with '/1' and '/2' (before comment)\n\
           -s   error out when read names are different\n\
 Interleaves two paired-end files.\n\n", stderr);
   return 1;
@@ -82,7 +96,7 @@ int pairs_join(int argc, char *argv[]) {
     for (i = 0; i < 2; ++i) l[i] = kseq_read(ks[i]);
     if (l[0] < 0 || l[1] < 0)
       break;
-    if (strcmp(ks[0]->name.s, ks[1]->name.s)) {
+    if (!is_interleaved_pair(ks[0]->name.s, ks[1]->name.s)) {
       fprintf(stderr, "[%s] warning: different sequence names: %s != %s\n", __func__, ks[0]->name.s, ks[1]->name.s);
       if (strict) return 1;
     }

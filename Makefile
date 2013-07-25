@@ -13,7 +13,7 @@ LDFLAGS = -lz
 OBJS = seqqs.o
 LOBJS = seqqs.o
 
-.PHONY: clean all
+.PHONY: clean all test
 
 all: seqqs pairs
 
@@ -34,6 +34,9 @@ pairs: pairs.o
 	$(CC) $(CFLAGS) $(LDFLAGS) $? -o pairs
 
 lib: libseqqs.so
+
+test:
+	(cd tests && python test_pairs.py in-1.fq in-2.fq)
 
 libseqqs.so: CLFAGS += -fpic -D_LIB_ONLY
 libseqqs.so: $(LOBJS)

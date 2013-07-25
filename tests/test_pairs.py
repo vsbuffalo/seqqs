@@ -14,7 +14,7 @@ bad_files = ("bad-1.fq", "bad-2.fq") # breaks strict, unmatching headers
 ok_files = ("ok-1.fq", "ok-2.fq") # differing only in /1 and /2
 
 def make_outfile(name):
-    name, ext = name.split(".")
+    name, ext = os.path.splitext(name)
     return name + "-out" + "." + ext 
 
 def test_join_split(infiles):

@@ -14,7 +14,7 @@ DEFAULT_TRIMFQ_ERROR = 0.05
 QUAL_CMD = """
 pairs join -t -s {in_1} {in_2} \
 | seqqs -e -i -s -p {prefix}_raw - \
-| scythe -a {adapters} -p {prior} - \
+| scythe -a {adapters} -p {prior} - 2> {prefix}_scythe.stderr \
 | seqtk trimfq -q {trim_error} - \
 | seqqs -e -i -s -p {prefix}_trimmed - \
 | pairs split -1 {out_1} -2 {out_2} -u {out_unpaired} -
@@ -42,7 +42,6 @@ def process_pe(args):
     argsdict.update(make_outputfiles((args.in1, args.in2)))
     cmd = QUAL_CMD.format(**argsdict)
     sys.stderr.write("running pipeline\n\t%s\n" % cmd)
-    pdb.set_trace()
     ret = check_call(cmd, shell=True)
     return ret
     

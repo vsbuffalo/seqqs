@@ -56,7 +56,7 @@ def process_se(args):
     pass
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(prog='qp', info="""\
+    parser = argparse.ArgumentParser(prog='qp', description="""\
 qp, run a generic quality processing pipeline on short reads. 
 
 Note that seqqs (the program collecting quality information) does not

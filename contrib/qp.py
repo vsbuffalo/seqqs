@@ -14,19 +14,20 @@ DEFAULT_TRIMFQ_ERROR = 0.05
 
 QUAL_PE_CMD = """\
 pairs join -t -s {in_1} {in_2} \
-| seqqs -k {k} -e -i -s -p {prefix}_raw - \
+| seqqs -k {kmer} -e -i -s -p {prefix}_raw - \
 | scythe -a {adapters} -p {prior} - 2> {prefix}_scythe.stderr \
 | seqtk trimfq -q {trim_error} - \
-| seqqs -e -k {k} -i -s -p {prefix}_trimmed - """
+| seqqs -e -k {kmer} -i -s -p {prefix}_trimmed - """
 
 FINAL_SPLIT_CMD = """\
 | pairs split -1 {out_1} -2 {out_2} -u {out_unpaired} -
 """
 
 def split_fastq_ext(filename):
-    parts = re.match(r'(.*)\.(fastq(\.gz)?)$', filename, flags=re.I).groups()
-    if sum(field is None for field in parts) > 1:
-        raise ValueError("cannot parse FASTQ file name")
+    matches = re.match(r'(.*)\.(fastq(\.gz)?)$', filename, flags=re.I)
+    if matches is None or sum(field is None for field in matches.groups()) > 1:
+        raise ValueError("cannot parse FASTQ file name: should end in .fastq or .fastq.gz")
+    parts = matches.groups()
     return (parts[0], parts[1])
 
 
@@ -44,7 +45,7 @@ def process_pe(args):
     argsdict = dict(in_1=args.in1, in_2=args.in2, adapters=args.a, prior=args.p, trim_error=args.e)
     argsdict.update(make_outputfiles((args.in1, args.in2)))
     cmd = QUAL_PE_CMD
-    if args.s:
+    if args.split:
        cmd += FINAL_SPLIT_CMD 
     cmd = cmd.format(**argsdict)
     sys.stderr.write("\nrunning pipeline:\n\t%s\n" % cmd)
@@ -65,13 +66,14 @@ memory, so use wish caution. Short k-mers (around 6-8bp) are often
 enough to detect contaminants like barcoes and adapters.""")
     parser.add_argument('-p', type=float, help='scythe prior contaminant rate', default=DEFAULT_SCYTHE_PRIOR)
     parser.add_argument('-e', type=float, help='trimfq error rate threshold', default=DEFAULT_TRIMFQ_ERROR)
-    parser.add_argument('-k', type=int, help='k-mer size for positional k-mer hashing', 
+    parser.add_argument('-k', '--kmer', type=int, 
+                        help='k-mer size for positional k-mer hashing', 
                         default=0)
     subparsers = parser.add_subparsers(help='sub-command help')
 
     parser_pe = subparsers.add_parser('pe', help='paired-end processing')
     parser_pe.add_argument('-a', type=str, help='adapters FASTA file', required=True)
-    parser_pe.add_argument('-s', action="store_true", help="split interleaved file back into pairs and orphan file")
+    parser_pe.add_argument('-s', '--split', action="store_true", help="split interleaved file back into pairs and orphan file")
     parser_pe.add_argument('in1', type=str, help='read pair 1 FASTQ file')
     parser_pe.add_argument('in2', type=str, help='read pair 2 FASTQ file')
     parser_pe.set_defaults(func=process_pe)

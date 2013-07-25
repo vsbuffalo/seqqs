@@ -42,7 +42,8 @@ def make_outputfiles(infiles, outext="fastq"):
     return outdict
 
 def process_pe(args):
-    argsdict = dict(in_1=args.in1, in_2=args.in2, adapters=args.a, prior=args.p, trim_error=args.e)
+    argsdict = dict(in_1=args.in1, in_2=args.in2, adapters=args.a, 
+                    prior=args.p, trim_error=args.e, kmer=args.kmer)
     argsdict.update(make_outputfiles((args.in1, args.in2)))
     cmd = QUAL_PE_CMD
     if args.split:

@@ -44,7 +44,7 @@ def process_pe(args):
     argsdict = dict(in_1=args.in1, in_2=args.in2, adapters=args.a, prior=args.p, trim_error=args.e)
     argsdict.update(make_outputfiles((args.in1, args.in2)))
     cmd = QUAL_PE_CMD
-    if args.split:
+    if args.s:
        cmd += FINAL_SPLIT_CMD 
     cmd = cmd.format(**argsdict)
     sys.stderr.write("\nrunning pipeline:\n\t%s\n" % cmd)

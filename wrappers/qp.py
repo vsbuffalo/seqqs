@@ -39,7 +39,7 @@ def make_outputfiles(infiles, outext="fastq"):
     # following assume's Illumina's CASAVA pipeline naming scheme, with optional 'set' group.
     unpaired_file = re.sub(r"_R[12](_\d{3})?$", r"_RS\1-trimmed", filepath)
     outdict["out_unpaired"] = unpaired_file + os.extsep + outext
-    outdict["prefix"] = re.sub(r"_R[12]$", "", filepath)
+    outdict["prefix"] = re.sub(r"_R[12](_\d{3})?$", "", filepath)
     return outdict
 
 def process_pe(args):

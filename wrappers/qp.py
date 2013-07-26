@@ -36,7 +36,7 @@ def make_outputfiles(infiles, outext="fastq"):
     for i, filename in enumerate(infiles):
         filepath, ext = split_fastq_ext(os.path.basename(filename))
         outdict["out_%d" % (i+1)] = filepath + "-trimmed" + os.extsep + outext
-    unpaired_file = re.sub(r"_R[12]$", "_RS-trimmed", filepath)
+    unpaired_file = re.sub(r"_R[12]", "_RS-trimmed", filepath)
     outdict["out_unpaired"] = unpaired_file + os.extsep + outext
     outdict["prefix"] = re.sub(r"_R[12]$", "", filepath)
     return outdict

@@ -37,7 +37,7 @@ def make_outputfiles(infiles, outext="fastq"):
         filepath, ext = split_fastq_ext(os.path.basename(filename))
         outdict["out_%d" % (i+1)] = filepath + "-trimmed" + os.extsep + outext
     # following assume's Illumina's CASAVA pipeline naming scheme, with optional 'set' group.
-    unpaired_file = re.sub(r"_R[12](_\d{3})?$", "_RS\1-trimmed", filepath)
+    unpaired_file = re.sub(r"_R[12](_\d{3})?$", r"_RS\1-trimmed", filepath)
     outdict["out_unpaired"] = unpaired_file + os.extsep + outext
     outdict["prefix"] = re.sub(r"_R[12]$", "", filepath)
     return outdict

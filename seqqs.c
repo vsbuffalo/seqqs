@@ -295,6 +295,7 @@ void qs_ntm_fprint(FILE *file, qs_set_t *qs) {
 
 void qs_lm_fprint(FILE *file, qs_set_t *qs) {
   unsigned i;
+  fprintf(file, "pos\tcount\n");
   for (i = 0; i < qs->l; i++) {
     fprintf(file, "%d\t%llu\n", i+1, qs->lm[i]);
   }

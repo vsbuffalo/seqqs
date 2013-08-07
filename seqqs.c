@@ -365,7 +365,7 @@ Output:\n\
 <prefix>_len.txt:   length distribution by position matrix\n\
 <prefix>_kmer.txt:  k-mer distribution by position matrix\n\
 \
-If -i is used, these will have \"_1.txt\" and \"_2.txt\" suffixes.", stderr);
+If -i is used, these will have \"_1.txt\" and \"_2.txt\" suffixes.\n", stderr);
   return 1;
 }
 

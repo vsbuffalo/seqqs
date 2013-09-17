@@ -6,6 +6,7 @@
 #include <string.h>
 #include <limits.h>
 #include <math.h>
+#include <unistd.h>
 #include <zlib.h>
 
 #ifdef USE_SAMTOOLS_LIBS

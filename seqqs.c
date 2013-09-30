@@ -265,7 +265,7 @@ void qs_qm_fprint(FILE *file, qs_set_t *qs) {
   for (i = 0; i < qs->l; i++) {
     for (j = 0; j < qrng(qs->qt); j++) {
       cnt = qs->qm[i][j];
-      fprintf(file, "%lu", cnt);
+      fprintf(file, "%llu", (long long unsigned int) cnt);
       if (j < qrng(qs->qt)-1) fputc('\t', file);
     }
     fputc('\n', file);
@@ -286,7 +286,7 @@ void qs_ntm_fprint(FILE *file, qs_set_t *qs) {
   for (i = 0; i < qs->l; i++) {
     for (j = 0; j < 17; j++) {
       cnt = qs->ntm[i][j];
-      fprintf(file, "%lu", cnt);
+      fprintf(file, "%llu", (long long unsigned int) cnt);
       if (j < 16) fputc('\t', file);
     }
     fputc('\n', file);
@@ -298,7 +298,7 @@ void qs_lm_fprint(FILE *file, qs_set_t *qs) {
   unsigned i;
   fprintf(file, "pos\tcount\n");
   for (i = 0; i < qs->l; i++) {
-    fprintf(file, "%d\t%lu\n", i+1, qs->lm[i]);
+    fprintf(file, "%d\t%llu\n", i+1, (long long unsigned int) qs->lm[i]);
   }
   fputc('\n', file);
 }
@@ -312,7 +312,7 @@ void qs_kmer_fprint(FILE *file, qs_set_t *qs) {
   for (k = kh_begin(qs->h); k != kh_end(qs->h); ++k) {
     if (!kh_exist(qs->h, k)) continue;
     key = (char*) kh_key(qs->h, k);
-    fprintf(file, "%.*s\t%s\t%lu\n", qs->k, key, key+(qs->k+1), kh_value(qs->h, k));
+    fprintf(file, "%.*s\t%s\t%llu\n", qs->k, key, key+(qs->k+1), (long long unsigned int) kh_value(qs->h, k));
     i++;
     free((char *) kh_key(qs->h, k));
   }

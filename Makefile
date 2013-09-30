@@ -1,8 +1,8 @@
 PROGRAM_NAME = seqqs
 VERSION = 0.01
-CC = clang
+CC = gcc
 DEBUG ?= 0
-CFLAGS = -Wall -pedantic -DVERSION=$(VERSION) -std=c11
+CFLAGS = -Wall -pedantic -DVERSION=$(VERSION) -std=gnu99
 ifeq ($(DEBUG), 1)
 	CFLAGS += -g -O0
 else 

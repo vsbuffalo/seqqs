@@ -5,6 +5,7 @@
 #include <zlib.h>
 #include <limits.h>
 #include <unistd.h>
+#include <string.h>
 #include "kseq.h"
 
 KSEQ_INIT(gzFile, gzread)

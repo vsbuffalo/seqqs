@@ -185,7 +185,7 @@ void qs_update(qs_set_t *qs, kseq_t *seq, int strict) {
   /* update length (0-indexed) */
   qs->lm[seq->seq.l-1]++;
 
-  char *kmer;
+  char *kmer=NULL;
   khiter_t key;
   int is_missing, ret;
   if (qs->k) kmer = malloc(sizeof(char)*(qs->k + 2 + log10(UINT_MAX)));
@@ -265,7 +265,7 @@ void qs_qm_fprint(FILE *file, qs_set_t *qs) {
   for (i = 0; i < qs->l; i++) {
     for (j = 0; j < qrng(qs->qt); j++) {
       cnt = qs->qm[i][j];
-      fprintf(file, "%llu", cnt);
+      fprintf(file, "%lu", cnt);
       if (j < qrng(qs->qt)-1) fputc('\t', file);
     }
     fputc('\n', file);
@@ -286,7 +286,7 @@ void qs_ntm_fprint(FILE *file, qs_set_t *qs) {
   for (i = 0; i < qs->l; i++) {
     for (j = 0; j < 17; j++) {
       cnt = qs->ntm[i][j];
-      fprintf(file, "%llu", cnt);
+      fprintf(file, "%lu", cnt);
       if (j < 16) fputc('\t', file);
     }
     fputc('\n', file);
@@ -298,7 +298,7 @@ void qs_lm_fprint(FILE *file, qs_set_t *qs) {
   unsigned i;
   fprintf(file, "pos\tcount\n");
   for (i = 0; i < qs->l; i++) {
-    fprintf(file, "%d\t%llu\n", i+1, qs->lm[i]);
+    fprintf(file, "%d\t%lu\n", i+1, qs->lm[i]);
   }
   fputc('\n', file);
 }
@@ -312,7 +312,7 @@ void qs_kmer_fprint(FILE *file, qs_set_t *qs) {
   for (k = kh_begin(qs->h); k != kh_end(qs->h); ++k) {
     if (!kh_exist(qs->h, k)) continue;
     key = (char*) kh_key(qs->h, k);
-    fprintf(file, "%.*s\t%s\t%llu\n", qs->k, key, key+(qs->k+1), kh_value(qs->h, k));
+    fprintf(file, "%.*s\t%s\t%lu\n", qs->k, key, key+(qs->k+1), kh_value(qs->h, k));
     i++;
     free((char *) kh_key(qs->h, k));
   }
@@ -372,7 +372,7 @@ If -i is used, these will have \"_1.txt\" and \"_2.txt\" suffixes.\n", stderr);
 
 int main(int argc, char *argv[]) {
   int c, pr=0, k=0, emit=0, strict=0, interleaved=0;
-  int has_prefix = 0;
+  int has_prefix=0;
   char *qual_fn="qual.txt", *nucl_fn="nucl.txt", *len_fn="len.txt", *kmer_fn="kmer.txt";
   char *prefix="", *rname;
   FILE *qual_fp[2], *nucl_fp[2], *len_fp[2], *kmer_fp[2];

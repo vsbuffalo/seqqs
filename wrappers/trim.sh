@@ -20,7 +20,9 @@ usage: trim.sh sample_name in1.fq in2.fq outdir [adapters prior qual_thresh stat
 	adapters	adapters file for Scythe (FASTA file, default: illumina_adapters.fa)\n\
 	prior		prior contamination rate (default: 0.4)\n\
 	qual_thresh	minimum quality for window (default: 20)\n\
-	stats		directory for statistics, will be created if does not exist (default: stats/)\n\trim.sh version $VERSION" >&2
+	stats		directory for statistics, will be created if does not exist (default: stats/)\n\
+Note: this uses 11 different processes.\
+\ntrim.sh version $VERSION" >&2
     exit 1
 }
 
@@ -49,18 +51,18 @@ PRIOR=${6:-0.4}
 QUAL_THRESH=${7:-20}
 
 # stat directory
-STAT=${8:stats/}
+STAT=${8:-stats}
 
 check_file_exists() {
     if [ ! -e "$1" ]; then 
 	echo "[trim.sh] error: file '$1' does not exist." >&2
-	exit
+	exit 1
     fi
 }
 
 check_dir_exists() {
     if [ ! -d "$1" ]; then 
-	echo "[trim.sh] error: directory '$1' does not exist, creating it." >&2
+	echo "[trim.sh] message: directory '$1' does not exist, creating it." >&2
 	mkdir -p $1
     fi
 }

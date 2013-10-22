@@ -25,22 +25,24 @@ DIR=$1
 
 if [ $# -eq 1 ]; then
     # single ended mode
-    find $DIR -name "*.fastq.gz" | sort
+    NPAIRS=$(find $DIR -name "*.fastq.gz" | wc -l)
+    echo "[groupsamples.sh] $NPAIRS read pairs found in '$DIR'" >&2
+    find $DIR -name "*.fastq.gz" | sort | xargs cat
 elif [ $# -gt 1 ]; then
     # paired ended mode
     PAIR=$2
-    PAIRS_1=$(find $DIR -name "*.fastq.gz" -and -name "*_R1_*" | sort | wc -l)
-    PAIRS_2=$(find $DIR -name "*.fastq.gz" -and -name "*_R2_*" | sort | wc -l)
+    NPAIRS_1=$(find $DIR -name "*.fastq.gz" -and -name "*_R1_*" -and -not -path '*/\.*' | wc -l)
+    NPAIRS_2=$(find $DIR -name "*.fastq.gz" -and -name "*_R2_*" -and -not -path '*/\.*' | wc -l)
     
     # check same length of paired files
-    if [ ! "$PAIRS_1" == "$PAIRS_2" ]; then
+    if [ ! "$NPAIRS_1" == "$NPAIRS_2" ]; then
 	echo "[groupsamples.sh] error: different number of R1 and R2 samples." >&2
 	exit 1
     fi
     
     # further checking by taking set variable for each file and
     # checking there are two
-    TMP=$(find $DIR -name "*.fastq.gz" -and -name "*_R?_*" | sed 's/.*_\([0-9]*\).fastq.gz/\1/' | sort | uniq -c | sed 's/ *\([0-9]*\) [0-9]*/\1/' | uniq -c  | wc -l)
+    TMP=$(find $DIR -name "*.fastq.gz" -and -name "*_R?_*" -and -not -path '*/\.*' | sed 's/.*_\([0-9]*\).fastq.gz/\1/' | sort | uniq -c | sed 's/ *\([0-9]*\) [0-9]*/\1/' | uniq -c  | wc -l)
     if [ $TMP -gt 1 ]; then
 	echo "[groupsamples.sh] error: non-matching set entries for R1 and R2 samples." >&2
 	exit 1
@@ -48,10 +50,12 @@ elif [ $# -gt 1 ]; then
     
     # everything checks out, output the correct entry.
     if [ "$PAIR" -eq 1 ]; then 
-	find $DIR -name "*.fastq.gz" -and -name "*_R1_*" | sort
+	find $DIR -name "*.fastq.gz" -and -name "*_R1_*" -and -not -path '*/\.*' | sort | xargs cat 
     elif [ "$PAIR" -eq 2 ]; then
-	find $DIR -name "*.fastq.gz" -and -name "*_R2_*" | sort
+	find $DIR -name "*.fastq.gz" -and -name "*_R2_*" -and -not -path '*/\.*' | sort | xargs cat
     fi
+
+    echo "[groupsamples.sh] $NPAIRS_1 read pairs found in '$DIR', pair $PAIR" >&2
 else
     usage
 fi

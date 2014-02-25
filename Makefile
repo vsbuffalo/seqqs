@@ -28,10 +28,10 @@ clean:
 	rm -f pairs pairs.o
 
 seqqs: $(OBJS)
-	$(CC) $(CFLAGS) $(LDFLAGS) $? -o $(PROGRAM_NAME)
+	$(CC) $(CFLAGS) $? -o $(PROGRAM_NAME) $(LDFLAGS) 
 
 pairs: pairs.o
-	$(CC) $(CFLAGS) $(LDFLAGS) $? -o pairs
+	$(CC) $(CFLAGS) $? -o pairs $(LDFLAGS) 
 
 lib: libseqqs.so
 

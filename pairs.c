@@ -77,9 +77,9 @@ Interleaves two paired-end files.\n\n", stderr);
 }
 
 int pairs_join(int argc, char *argv[]) {
-  gzFile fp[2];
-  kseq_t *ks[2];
-  int c, i, tag=0, strict=0, l[] = {0, 0};
+  gzFile fp1, fp2;
+  kseq_t *ks1, *ks2;
+  int c, tag=0, strict=0, l1 = 0, l2 = 0;
   while ((c = getopt(argc, argv, "ts")) >= 0) {
     switch (c) {
     case 't': tag = 1; break;
@@ -90,31 +90,37 @@ int pairs_join(int argc, char *argv[]) {
 
   if (optind == argc) return join_usage();
 
-  for (i = 0; i < 2; ++i) {
-    fp[i] = gzopen(argv[optind + i], "r");
-    ks[i] = kseq_init(fp[i]);
-  }
+  fp1 = gzopen(argv[optind], "r");
+  fp2 = gzopen(argv[optind+1], "r");
+  ks1 = kseq_init(fp1);
+  ks2 = kseq_init(fp2);
+
   for (;;) {
-    for (i = 0; i < 2; ++i) l[i] = kseq_read(ks[i]);
-    if (l[0] < 0 || l[1] < 0)
+    l1 = kseq_read(ks1);
+    l2 = kseq_read(ks2);
+    
+    if (l1 < 0 || l2 < 0)
       break;
-    if (!is_interleaved_pair(ks[0]->name.s, ks[1]->name.s)) {
-      fprintf(stderr, "[%s] warning: different sequence names: %s != %s\n", __func__, ks[0]->name.s, ks[1]->name.s);
+    if (!is_interleaved_pair(ks1->name.s, ks2->name.s)) {
+      fprintf(stderr, "[%s] warning: different sequence names: %s != %s\n", __func__, ks1->name.s, ks2->name.s);
       if (strict) return 1;
     }
    
-    for (i = 0; i < 2; ++i) printseq(stdout, ks[i], ks[i]->seq.l, tag ? i+1 : 0);
+    printseq(stdout, ks1, ks1->seq.l, tag ? 1 : 0);
+    printseq(stdout, ks2, ks2->seq.l, tag ? 2 : 0);
   }
   
-  if (l[0] > 0 || l[1] > 0) {
+  if (l1 > 0 || l2 > 0) {
     fprintf(stderr, "[%s] error: paired end files have differing numbers of reads.\n", __func__);
     exit(1);
   }
 
-  for (i = 0; i < 2; ++i) {
-    kseq_destroy(ks[i]);
-    gzclose(fp[i]);
-  }
+  
+  kseq_destroy(ks1);
+  kseq_destroy(ks2);
+  gzclose(fp1);
+  gzclose(fp2);
+
   return 0;
 }
 
